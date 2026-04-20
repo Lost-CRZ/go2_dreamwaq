@@ -267,4 +267,4 @@ if __name__ == "__main__":
     )
 
     # to see the environment rendering, set headless=False
-    train_go2(headless=True)
+    train_go2(headless=False)

@@ -2674,8 +2674,10 @@ class LeggedRobot(BaseTask):
     def _parse_cfg(self, cfg):
         self.dt = self.cfg.control.decimation * self.sim_params.dt
         self.obs_scales = self.cfg.obs_scales
-        self.reward_scales = vars(self.cfg.reward_scales)
-        self.curriculum_thresholds = vars(self.cfg.curriculum_thresholds)
+        self.reward_scales = {k: v for k, v in vars(self.cfg.reward_scales).items()
+                              if not k.startswith('_') and isinstance(v, (int, float))}
+        self.curriculum_thresholds = {k: v for k, v in vars(self.cfg.curriculum_thresholds).items()
+                                      if not k.startswith('_') and isinstance(v, (int, float))}
         cfg.command_ranges = vars(cfg.commands)
         if cfg.terrain.mesh_type not in ["heightfield", "trimesh"]:
             cfg.terrain.curriculum = False
