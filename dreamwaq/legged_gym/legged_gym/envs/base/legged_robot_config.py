@@ -270,7 +270,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         use_clipped_value_loss = True
         clip_param = 0.2
         entropy_coef = 0.01
-        num_learning_epochs = 2
+        num_learning_epochs = 5
         num_mini_batches = 4  # mini batch size = num_envs*nsteps / nminibatches
         learning_rate = 5.0e-4  # 5.e-4
         schedule = "adaptive"  # could be adaptive, fixed
@@ -283,7 +283,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         policy_class_name = "ActorCritic"
         algorithm_class_name = "PPO"
         num_steps_per_env = 24  # per iteration
-        max_iterations = 67500  # number of policy updates
+        max_iterations = 1300  # number of policy updates
 
         # logging
         save_interval = 50  # check for potential saves every this many iterations

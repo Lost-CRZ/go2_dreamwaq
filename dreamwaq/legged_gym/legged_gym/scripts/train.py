@@ -70,8 +70,8 @@ def train(args):
 
     if WANDB:
         wandb.init(
-            project="dreamwaq",
-            entity="curieuxjy",
+            project="dreamWaq",
+            entity="crzrizer3",
             config={**env_cfg_dict, **train_cfg_dict},
         )
         wandb.tensorboard.patch(save=False, tensorboard_x=True)
@@ -81,7 +81,7 @@ def train(args):
             str(env_cfg_dict["control"]["stiffness"]["joint"]) + "_" \
             + str(env_cfg_dict["control"]["damping"]["joint"])
         )
-        wandb.run.save()
+        # wandb.run.save()
 
     ppo_runner.learn(
         num_learning_iterations=train_cfg.runner.max_iterations,
@@ -93,6 +93,6 @@ def train(args):
 
 
 if __name__ == "__main__":
-    WANDB = False
+    WANDB = True
     args = get_args()
     train(args)

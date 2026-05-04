@@ -39,7 +39,7 @@ class A1RoughCfg(LeggedRobotCfg):
         terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
 
     class env(LeggedRobotCfg.env):
-        num_envs = 800  # reduced for 8GB VRAM (RTX 3060)
+        num_envs = 4096  # reduced for 8GB VRAM (RTX 3060)
         num_observations = 48  # o(45) + true_lin_vel(3)
         # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise
         num_privileged_obs = None  # d(3) + h(187)
@@ -262,7 +262,7 @@ class A1RoughCfgWaqPPO(A1RoughBaseCfgPPO):
         beta_limit = 4.0
         learning_rate = 0.01
         min_lr = 0.0015
-        patience = 500
+        patience = 100
         factor = 0.8
 
     class runner(A1RoughBaseCfgPPO.runner):
@@ -303,7 +303,7 @@ class A1RoughCfgEstPPO(A1RoughBaseCfgPPO):
     class vae:
         learning_rate = 0.01
         min_lr = 0.0015
-        patience = 500
+        patience = 100
         factor = 0.8
 
     class runner(A1RoughBaseCfgPPO.runner):
