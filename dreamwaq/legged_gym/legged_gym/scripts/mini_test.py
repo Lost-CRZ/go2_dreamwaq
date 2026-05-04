@@ -27,7 +27,7 @@ def play(args):
     # override some parameters for testing
     env_cfg.env.num_envs = 2
     # [smooth slope, rough slope, stairs up, stairs down, discrete]
-    env_cfg.terrain.terrain_proportions = [0.0, 0.0, 0.0, 1.0, 0.0]
+    env_cfg.terrain.terrain_proportions = [0.0, 0.0, 1.0, 0.0, 0.0]
     env_cfg.terrain.num_rows = 10  # level
     env_cfg.terrain.num_cols = 1  # type
     env_cfg.terrain.curriculum = False
@@ -198,7 +198,7 @@ def play(args):
             if video is None:
                 if SLOW:
                     slow_down_factor = (
-                        3  # Adjust this value to control the speed of the video
+                        10  # Adjust this value to control the speed of the video
                     )
                     fps = int(1 / (env.dt * slow_down_factor))  # Adjust the frame rate
                     if TRUE_VEL:
@@ -324,7 +324,7 @@ def play(args):
 
 if __name__ == "__main__":
     RECORD_FRAMES = True  # render a video
-    SLOW = False  # with slow speed
+    SLOW = True  # with slow speed
     TRUE_VEL = False  # inference with true base velocity not estimated base velocity
 
     args = get_args()

@@ -53,6 +53,19 @@ from .a1.a1_config import (
     A1RoughCfgEstPPO,
 )
 
+from .d1.d1_config import (
+    D1RoughCfg,
+    D1RoughOracleCfg,
+    D1RoughBaseCfg,
+    D1RoughWaqCfg,
+    D1RoughEstCfg,
+    D1RoughCfgPPO,
+    D1RoughOracleCfgPPO,
+    D1RoughBaseCfgPPO,
+    D1RoughCfgWaqPPO,
+    D1RoughCfgEstPPO,
+)
+
 from .go2.go2_config import (
     Go2RoughCfg,
     Go2RoughOracleCfg,
@@ -87,6 +100,27 @@ task_registry.register(
 )  # implicitly // asymmetric
 task_registry.register(
     "a1_est", LeggedRobot, A1RoughEstCfg(), A1RoughCfgEstPPO()
+)  # implicitly // asymmetric
+
+
+# LeggedRobotCfg -> D1RoughCfg / LeggedRobotCfgPPO -> D1RoughCfgPPO
+task_registry.register(
+    "d1_default", LeggedRobot, D1RoughCfg(), D1RoughCfgPPO()
+)  # rew_default(not related with paper)
+# D1RoughCfg -> D1RoughBaseCfg / D1RoughCfgPPO -> D1RoughBaseCfgPPO
+task_registry.register(
+    "d1_base", LeggedRobot, D1RoughBaseCfg(), D1RoughBaseCfgPPO()
+)  # blind base // symmetric
+# D1RoughBaseCfg -> D1RoughOracleCfg / D1RoughCfgPPO -> D1RoughOracleCfgPPO
+task_registry.register(
+    "d1_oracle", LeggedRobot, D1RoughOracleCfg(), D1RoughOracleCfgPPO()
+)  # oracle // symmetric
+# D1RoughBaseCfg -> D1RoughWaqCfg / D1RoughCfgPPO -> D1RoughOracleCfgPPO
+task_registry.register(
+    "d1_waq", LeggedRobot, D1RoughWaqCfg(), D1RoughCfgWaqPPO()
+)  # implicitly // asymmetric
+task_registry.register(
+    "d1_est", LeggedRobot, D1RoughEstCfg(), D1RoughCfgEstPPO()
 )  # implicitly // asymmetric
 
 

@@ -178,7 +178,8 @@ class RolloutStorage:
 
     def clear(self):
         self.step = 0
-
+    
+    #? For one traj specifically
     def compute_returns(self, last_values, gamma, lam):
         advantage = 0
         for step in reversed(range(self.num_transitions_per_env)):

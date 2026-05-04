@@ -126,6 +126,7 @@ class PPO:
         self.transition.dones = dones
 
         # Bootstrapping on time outs
+        # Todo: The paper refers an adaptive bootstrapping method, not implemented yet
         if "time_outs" in infos:
             self.transition.rewards += self.gamma * torch.squeeze(
                 self.transition.values
