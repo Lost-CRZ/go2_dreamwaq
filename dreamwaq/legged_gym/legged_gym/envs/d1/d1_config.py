@@ -39,17 +39,17 @@ class D1RoughCfg(LeggedRobotCfg):
         terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
 
     class env(LeggedRobotCfg.env):
-        num_envs = 800  # reduced for 8GB VRAM (RTX 3060)
+        num_envs = 200  # reduced for 8GB VRAM (RTX 3060)
         num_observations = 48  # o(45) + true_lin_vel(3)
         # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise
         num_privileged_obs = None  # d(3) + h(187)
         num_actions = 12
-        env_spacing = 3.0  # not used with heightfields/trimeshes
+        env_spacing = 4.0  # not used with heightfields/trimeshes
         send_timeouts = True  # send time out information to the algorithm
         episode_length_s = 20  # episode length in seconds
 
     class init_state(LeggedRobotCfg.init_state):
-        pos = [0.0, 0.0, 0.42]  # x,y,z [m]
+        pos = [0.0, 0.0, 0.65]  # x,y,z [m]  # D1 leg length 0.35+0.35=0.70m
         default_joint_angles = {  # = target angles [rad] when action = 0.0
             "FL_hip_joint": 0.1,  # [rad]
             "RL_hip_joint": 0.1,  # [rad]
@@ -68,8 +68,9 @@ class D1RoughCfg(LeggedRobotCfg):
     class control(LeggedRobotCfg.control):
         # PD Drive parameters:
         control_type = "P"
-        stiffness = {"joint": 28.0}  # [N*m/rad] # checked
-        damping = {"joint": 0.7}  # [N*m*s/rad] # checked
+        # D1 motors: hip/thigh limit=100 Nm, calf limit=200 Nm (vs A1: 20/55 Nm)
+        stiffness = {"joint": 100.0}  # [N*m/rad]
+        damping = {"joint": 3.0}  # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -112,7 +113,7 @@ class D1RoughCfg(LeggedRobotCfg):
         randomize_friction = True
         friction_range = [0.2, 1.25]  # checked
         randomize_base_mass = True
-        added_mass_range = [-1.0, 2.0]  # checked
+        added_mass_range = [-3.0, 8.0]  # scaled for D1 (~59 kg body)
         randomize_p_gains = True
         p_gains_range = [0.9, 1.1]
         randomize_d_gains = True
@@ -127,7 +128,7 @@ class D1RoughCfg(LeggedRobotCfg):
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
         soft_dof_pos_limit = 0.9
-        base_height_target = 0.25
+        base_height_target = 0.55  # D1 standing height ~0.65m
 
         class scales(LeggedRobotCfg.rewards.scales):
             torques = -0.0002
@@ -162,7 +163,7 @@ class D1RoughBaseCfg(D1RoughCfg):
         """SAME reward functions with the paper"""
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
-        desired_foot_height = 0.12
+        desired_foot_height = 0.20  # scaled for D1 longer legs (0.70m vs A1 0.40m)
 
         class scales(D1RoughCfg.rewards.scales):
             tracking_lin_vel = 1.0
