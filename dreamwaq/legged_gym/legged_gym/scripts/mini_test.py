@@ -19,12 +19,13 @@ import cv2
 import torch
 
 
-def play(args):
+def play(args, flip_visual=False):
     CENET = True if args.task.split("_")[-1] == "waq" else False
     # ESTNET = True if args.task.split("_")[-1] == "est" else False
 
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
+    env_cfg.asset.flip_visual_attachments = flip_visual  # set before env creation
     env_cfg.env.num_envs = 2
     # [smooth slope, rough slope, stairs up, stairs down, discrete]
     env_cfg.terrain.terrain_proportions = [0.0, 0.0, 1.0, 0.0, 0.0]
@@ -323,9 +324,14 @@ def play(args):
 
 
 if __name__ == "__main__":
-    RECORD_FRAMES = True  # render a video
+    RECORD_FRAMES = False  # render a video
     SLOW = True  # with slow speed
     TRUE_VEL = False  # inference with true base velocity not estimated base velocity
+    # flip_visual_attachments: rotates every visual mesh 180° around its joint axis.
+    # True  — needed for Unitree URDFs exported with y-up meshes (e.g. Go2, A1).
+    # False — correct for SolidWorks-exported URDFs (e.g. D1) where frames already match.
+    # NOTE: affects rendering only; has NO effect on collision geometry or physics.
+    FLIP_VISUAL = False
 
     args = get_args()
-    play(args)
+    play(args, flip_visual=FLIP_VISUAL)

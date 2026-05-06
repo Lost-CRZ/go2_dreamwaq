@@ -56,8 +56,10 @@ def save_config(env_cfg, train_cfg, config_dir):
     return env_cfg_dict, train_cfg_dict
 
 
-def train(args):
-    env, env_cfg = task_registry.make_env(name=args.task, args=args)
+def train(args, flip_visual=False):
+    env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
+    env_cfg.asset.flip_visual_attachments = flip_visual  # set before env creation
+    env, env_cfg = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     ppo_runner, train_cfg = task_registry.make_alg_runner(
         env=env, name=args.task, args=args
     )
@@ -94,5 +96,10 @@ def train(args):
 
 if __name__ == "__main__":
     WANDB = True
+    # flip_visual_attachments: rotates every visual mesh 180° around its joint axis.
+    # True  — needed for Unitree URDFs exported with y-up meshes (e.g. Go2, A1).
+    # False — correct for SolidWorks-exported URDFs (e.g. D1) where frames already match.
+    # NOTE: affects rendering only; has NO effect on collision geometry or physics.
+    FLIP_VISUAL = False
     args = get_args()
-    train(args)
+    train(args, flip_visual=FLIP_VISUAL)
