@@ -205,6 +205,10 @@ def main():
                             help="Set flip_visual_attachments (needed for some URDFs e.g. Go2)")
     pre_parser.add_argument("--no-flip", dest="flip", action="store_false",
                             help="Disable flip_visual_attachments (default, correct for SolidWorks exports)")
+    pre_parser.add_argument("--interactive", action="store_true", default=False,
+                            help="Spawn in stance pose (fixed in air) and control joints interactively with keyboard")
+    pre_parser.add_argument("--delta", type=float, default=0.05,
+                            help="Joint angle step per keypress in interactive mode (rad, default 0.05)")
     our_args, remaining = pre_parser.parse_known_args()
 
     # gymutil.parse_arguments needs sys.argv; feed it only the unrecognised args
@@ -214,6 +218,8 @@ def main():
     asset_root = os.path.abspath(our_args.asset_root)
     urdf_file = our_args.urdf
     simulate_mode = our_args.simulate
+    interactive_mode = our_args.interactive
+    joint_delta = our_args.delta
     # In simulate mode default to free base; honour explicit --fixed if passed
     if simulate_mode and "--fixed" not in sys.argv:
         fixed_base = False
@@ -226,7 +232,13 @@ def main():
 
     print(f"\nAsset root : {asset_root}")
     print(f"URDF file  : {urdf_file}")
-    print(f"Mode       : {'simulate (PD hold)' if simulate_mode else 'animate DOFs'}")
+    if interactive_mode:
+        mode_str = "interactive (stance + keyboard joint control)"
+    elif simulate_mode:
+        mode_str = "simulate (PD hold)"
+    else:
+        mode_str = "animate DOFs"
+    print(f"Mode       : {mode_str}")
     print(f"Fixed base : {fixed_base}")
     print(f"Height     : {spawn_height} m")
     print(f"Flip visual: {flip_visual}\n")
@@ -303,6 +315,160 @@ def main():
         while not gym.query_viewer_has_closed(viewer):
             gym.simulate(sim)
             gym.fetch_results(sim, True)
+            gym.step_graphics(sim)
+            gym.draw_viewer(viewer, sim, True)
+            gym.sync_frame_time(sim)
+
+    elif interactive_mode:
+        # ---- Stance pose + interactive joint control (torque / effort mode) -
+        # Mirrors training: τ = Kp*(target + default - pos) - Kd*vel
+        # applied via set_dof_actuation_force_tensor, drive mode = EFFORT.
+        from isaacgym import gymtorch
+        import torch
+
+        dof_names = gym.get_asset_dof_names(asset)
+        dof_props = gym.get_actor_dof_properties(env, actor)
+        asset_dof_props = gym.get_asset_dof_properties(asset)
+
+        # Build stance pose from KNOWN_DEFAULTS (0.0 for unknown joints)
+        dof_states = np.zeros(n_dofs, dtype=gymapi.DofState.dtype)
+        default_positions = np.zeros(n_dofs, dtype=np.float32)
+        for i, name in enumerate(dof_names):
+            angle = KNOWN_DEFAULTS.get(name, 0.0)
+            dof_states["pos"][i] = angle
+            default_positions[i] = angle
+        # action offsets on top of default_positions (starts at zero = stance)
+        action_offsets = np.zeros(n_dofs, dtype=np.float32)
+
+        # Clamp limits (use ±π / ±1.0 for unlimited DOFs)
+        lower_limits = np.copy(asset_dof_props["lower"])
+        upper_limits = np.copy(asset_dof_props["upper"])
+        for i in range(n_dofs):
+            if not asset_dof_props["hasLimits"][i]:
+                dof_type = gym.get_asset_dof_type(asset, i)
+                if dof_type == gymapi.DOF_ROTATION:
+                    lower_limits[i], upper_limits[i] = -math.pi, math.pi
+                else:
+                    lower_limits[i], upper_limits[i] = -1.0, 1.0
+
+        # Set drive mode to EFFORT (torque) — no internal PD, we compute it
+        for i in range(n_dofs):
+            dof_props["driveMode"][i] = gymapi.DOF_MODE_EFFORT
+            dof_props["stiffness"][i] = 0.0
+            dof_props["damping"][i] = 0.0
+        gym.set_actor_dof_properties(env, actor, dof_props)
+
+        # Snap to stance pose, zero velocity
+        gym.set_actor_dof_states(env, actor, dof_states, gymapi.STATE_ALL)
+
+        # Acquire DOF state tensor (pos + vel for all DOFs in the env)
+        gym.prepare_sim(sim)
+        dof_state_tensor = gym.acquire_dof_state_tensor(sim)
+        dof_state_torch = gymtorch.wrap_tensor(dof_state_tensor)  # (n_dofs, 2)
+        root_state_tensor = gym.acquire_actor_root_state_tensor(sim)
+        root_state_torch = gymtorch.wrap_tensor(root_state_tensor)  # (1, 13): px py pz qx qy qz qw vx vy vz wx wy wz
+        torques = np.zeros(n_dofs, dtype=np.float32)
+
+        # Subscribe keyboard events
+        gym.subscribe_viewer_keyboard_event(viewer, gymapi.KEY_LEFT,    "prev_joint")
+        gym.subscribe_viewer_keyboard_event(viewer, gymapi.KEY_RIGHT,   "next_joint")
+        gym.subscribe_viewer_keyboard_event(viewer, gymapi.KEY_UP,      "increase")
+        gym.subscribe_viewer_keyboard_event(viewer, gymapi.KEY_DOWN,    "decrease")
+        gym.subscribe_viewer_keyboard_event(viewer, gymapi.KEY_PAGE_UP, "increase_large")
+        gym.subscribe_viewer_keyboard_event(viewer, gymapi.KEY_PAGE_DOWN, "decrease_large")
+        gym.subscribe_viewer_keyboard_event(viewer, gymapi.KEY_R,       "reset")
+        gym.subscribe_viewer_keyboard_event(viewer, gymapi.KEY_SPACE,   "print_all")
+
+        current_joint = [0]  # mutable container so inner fn can update
+
+        def status_line():
+            j = current_joint[0]
+            effective = default_positions[j] + action_offsets[j]
+            print(f"\r  Joint [{j:2d}/{n_dofs-1}] {dof_names[j]:<30s}"
+                  f"  action_offset={action_offsets[j]:+.4f}  target={effective:+.4f} rad"
+                  f"  limits=[{lower_limits[j]:.3f}, {upper_limits[j]:.3f}]   ",
+                  end="", flush=True)
+
+        print("\nInteractive mode controls:")
+        print(f"  LEFT / RIGHT       : previous / next joint")
+        print(f"  UP / DOWN          : +/- {joint_delta:.3f} rad action offset")
+        print(f"  PAGE_UP / PAGE_DOWN: +/- {joint_delta*10:.3f} rad (10× step)")
+        print(f"  R                  : reset all joints to stance defaults")
+        print(f"  SPACE              : print full joint state")
+        print( "  Close window       : quit\n")
+        status_line()
+
+        while not gym.query_viewer_has_closed(viewer):
+            for evt in gym.query_viewer_action_events(viewer):
+                if evt.value == 0:   # key-release, ignore
+                    continue
+                j = current_joint[0]
+                if evt.action == "prev_joint":
+                    current_joint[0] = (j - 1) % n_dofs
+                    status_line()
+                elif evt.action == "next_joint":
+                    current_joint[0] = (j + 1) % n_dofs
+                    status_line()
+                elif evt.action in ("increase", "increase_large"):
+                    step = joint_delta if evt.action == "increase" else joint_delta * 10
+                    effective_target = default_positions[j] + action_offsets[j] + step
+                    effective_target = clamp(effective_target, lower_limits[j], upper_limits[j])
+                    action_offsets[j] = effective_target - default_positions[j]
+                    status_line()
+                elif evt.action in ("decrease", "decrease_large"):
+                    step = joint_delta if evt.action == "decrease" else joint_delta * 10
+                    effective_target = default_positions[j] + action_offsets[j] - step
+                    effective_target = clamp(effective_target, lower_limits[j], upper_limits[j])
+                    action_offsets[j] = effective_target - default_positions[j]
+                    status_line()
+                elif evt.action == "reset":
+                    action_offsets[:] = 0.0
+                    print("\nReset to stance defaults.")
+                    status_line()
+                elif evt.action == "print_all":
+                    gym.refresh_actor_root_state_tensor(sim)
+                    rs = root_state_torch[0].cpu().numpy()
+                    print("\nBase state:")
+                    print(f"  pos      : x={rs[0]:+.4f}  y={rs[1]:+.4f}  z={rs[2]:+.4f} m")
+                    print(f"  quat     : x={rs[3]:+.4f}  y={rs[4]:+.4f}  z={rs[5]:+.4f}  w={rs[6]:+.4f}")
+                    print(f"  lin_vel  : x={rs[7]:+.4f}  y={rs[8]:+.4f}  z={rs[9]:+.4f} m/s")
+                    print(f"  ang_vel  : x={rs[10]:+.4f}  y={rs[11]:+.4f}  z={rs[12]:+.4f} rad/s")
+                    gym.refresh_dof_state_tensor(sim)
+                    cur_pos = dof_state_torch[:, 0].cpu().numpy()
+                    cur_vel = dof_state_torch[:, 1].cpu().numpy()
+                    print("\nFull joint state:")
+                    for i, name in enumerate(dof_names):
+                        marker = ">>>" if i == current_joint[0] else "   "
+                        eff = default_positions[i] + action_offsets[i]
+                        print(f"  {marker} {i:2d}: {name:<30s}  offset={action_offsets[i]:+.4f}  target={eff:+.4f}  pos={cur_pos[i]:+.4f}  vel={cur_vel[i]:+.5f} rad/s")
+                    status_line()
+
+            # --- torque control matching training ----------------------------
+            gym.refresh_actor_root_state_tensor(sim)
+            gym.refresh_dof_state_tensor(sim)
+            dof_pos = dof_state_torch[:, 0].cpu().numpy()
+            dof_vel = dof_state_torch[:, 1].cpu().numpy()
+            # τ = Kp * (action_offset + default_pos - pos) - Kd * vel
+            torques[:] = (pd_stiffness * (action_offsets + default_positions - dof_pos)
+                          - pd_damping * dof_vel)
+            torque_tensor = gymtorch.unwrap_tensor(
+                torch.from_numpy(torques))
+            gym.set_dof_actuation_force_tensor(sim, torque_tensor)
+
+            gym.simulate(sim)
+            gym.fetch_results(sim, True)
+
+            # Draw green axis line for the active joint
+            gym.clear_lines(viewer)
+            dof_handle = gym.get_actor_dof_handle(env, actor, current_joint[0])
+            frame = gym.get_dof_frame(env, dof_handle)
+            gymutil.draw_line(
+                frame.origin,
+                frame.origin + frame.axis * 0.4,
+                gymapi.Vec3(0.0, 1.0, 0.0),
+                gym, viewer, env,
+            )
+
             gym.step_graphics(sim)
             gym.draw_viewer(viewer, sim, True)
             gym.sync_frame_time(sim)

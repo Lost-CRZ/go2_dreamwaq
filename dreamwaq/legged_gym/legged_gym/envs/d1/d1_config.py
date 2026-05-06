@@ -49,7 +49,7 @@ class D1RoughCfg(LeggedRobotCfg):
         episode_length_s = 20  # episode length in seconds
 
     class init_state(LeggedRobotCfg.init_state):
-        pos = [0.0, 0.0, 0.65]  # x,y,z [m]  # D1: thigh=0.72/calf=-1.44 => vert_ext~0.526m + foot_r~0.04m
+        pos = [0.0, 0.0, 0.62]  
         default_joint_angles = {  # = target angles [rad] when action = 0.0
             "FL_hip_joint": 0.0,   # [rad]
             "RL_hip_joint": 0.0,   # [rad]
@@ -70,7 +70,7 @@ class D1RoughCfg(LeggedRobotCfg):
         control_type = "P"
         # D1 motors: hip/thigh limit=100 Nm, calf limit=200 Nm (vs A1: 20/55 Nm)
         stiffness = {"joint": 100.0}  # [N*m/rad]
-        damping = {"joint": 5.0}  # [N*m*s/rad]  # D1 ~59kg, higher inertia needs more damping
+        damping = {"joint": 10.0}  # [N*m*s/rad]  # D1 ~59kg, higher inertia needs more damping
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -128,10 +128,10 @@ class D1RoughCfg(LeggedRobotCfg):
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
         soft_dof_pos_limit = 0.9
-        base_height_target = 0.50  # D1 comfortable standing height ~0.55m spawn
+        base_height_target = 0.57
 
         class scales(LeggedRobotCfg.rewards.scales):
-            torques = -0.0002
+            torques = -5e-5
             dof_pos_limits = -10.0
 
     # class normalization(LeggedRobotCfg.normalization):
@@ -171,12 +171,12 @@ class D1RoughBaseCfg(D1RoughCfg):
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.2
-            dof_acc = -2.5e-7
-            joint_power = -2.0e-5
+            dof_acc = -5.0e-7        # 2× A1: stiffer PD (Kp=100) → harder joint accelerations
+            joint_power = -5.0e-6   # 4× less severe than A1: D1 needs ~5× more torque to stand, keeping A1 scale swamps tracking reward
             base_height = -1.0
             action_rate = -0.01
             smoothness = -0.01
-            power_distribution = -1.0e-6
+            power_distribution = -2.5e-7  # 4× less severe than A1: same reasoning as joint_power
             foot_clearance = -0.01
             termination = -0.0
             torques = -0.0

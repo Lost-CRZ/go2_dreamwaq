@@ -144,6 +144,8 @@ def play(args, flip_visual=False):
                     (obs.detach(), est_vel.detach(), context_vec.detach()), dim=-1
                 )
             actions = policy(actor_obs.detach())
+            # Print actions for debugging
+            print(f"Step {i}: Actions: {actions.detach().cpu().numpy()}")
 
         # elif ESTNET:
         #
