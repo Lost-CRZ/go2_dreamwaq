@@ -202,6 +202,12 @@ class LeggedRobot(BaseTask):
             > 1.0,
             dim=1,
         )
+        # height-based termination: base below threshold relative to ground
+        if self.cfg.rewards.termination_height is not None:
+            base_height = torch.mean(
+                self.root_states[:, 2].unsqueeze(1) - self.measured_heights, dim=1
+            )
+            self.reset_buf |= base_height < self.cfg.rewards.termination_height
         self.time_out_buf = (
             self.episode_length_buf > self.max_episode_length
         )  # no terminal reward for time-outs

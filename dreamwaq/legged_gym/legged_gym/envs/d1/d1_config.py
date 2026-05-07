@@ -108,7 +108,7 @@ class D1RoughCfg(LeggedRobotCfg):
     class domain_rand(LeggedRobotCfg.domain_rand):
         system_delay = True
         push_robots = True
-        push_interval_s = 1.0
+        push_interval_s = 5.0  # was 1.0; 1s is too aggressive before robot learns to stand
         max_push_vel_xy = 1.0
         randomize_friction = True
         friction_range = [0.2, 1.25]  # checked
@@ -129,6 +129,7 @@ class D1RoughCfg(LeggedRobotCfg):
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
         soft_dof_pos_limit = 0.9
         base_height_target = 0.57
+        termination_height = 0.37  # terminate when base drops below 0.25m (sideways/collapsed); normal standing ~0.57m
 
         class scales(LeggedRobotCfg.rewards.scales):
             torques = -5e-5
@@ -163,26 +164,26 @@ class D1RoughBaseCfg(D1RoughCfg):
         """SAME reward functions with the paper"""
 
         only_positive_rewards = False  # if true negative total rewards are clipped at zero (avoids early termination problems)
-        desired_foot_height = 0.12
+        desired_foot_height = 0.13
 
         class scales(D1RoughCfg.rewards.scales):
             tracking_lin_vel = 1.0
             tracking_ang_vel = 0.5
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
-            orientation = -0.2
+            orientation = -2.0      # increased from -0.2: sideways robot was +reward; must dominate tracking
             dof_acc = -5.0e-7        # 2× A1: stiffer PD (Kp=100) → harder joint accelerations
             joint_power = -5.0e-6   # 4× less severe than A1: D1 needs ~5× more torque to stand, keeping A1 scale swamps tracking reward
-            base_height = -1.0
+            base_height = -5.0      # increased from -1.0: low base must cost more than free tracking reward
             action_rate = -0.01
             smoothness = -0.01
             power_distribution = -2.5e-7  # 4× less severe than A1: same reasoning as joint_power
             foot_clearance = -0.01
-            termination = -0.0
+            termination = -1.0   # penalty for base hitting ground; essential to discourage collapsing
             torques = -0.0
             dof_vel = -0.0
-            feet_air_time = 0.0
-            collision = -0.0
+            feet_air_time = 1.0  # reward proper foot lift rhythm; 0 gives no gait incentive
+            collision = -1.0    # penalty for thigh/calf contact; penalise pre-collapse dragging
             feet_stumble = -0.0
             stand_still = -0.0
             dof_pos_limits = -0.0

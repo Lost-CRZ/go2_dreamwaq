@@ -186,6 +186,7 @@ class LeggedRobotCfg(BaseConfig):
             stand_still = -0.0
 
         only_positive_rewards = True  # if true negative total rewards are clipped at zero (avoids early termination problems)
+        termination_height = None  # if set, terminate when base height drops below this value (m). None = disabled.
         tracking_sigma = 0.25  # tracking reward = exp(-error^2/sigma)
         soft_dof_pos_limit = (
             1.0  # percentage of urdf limits, values above this limit are penalized
