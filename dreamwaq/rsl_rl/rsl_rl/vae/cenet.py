@@ -221,7 +221,7 @@ class CENet(nn.Module):
             raise AssertionError("Not even number for context vector parameters")
 
         mu = mu.requires_grad_(True)
-        logvar = logvar.requires_grad_(True)
+        logvar = torch.clamp(logvar, min=-10.0, max=10.0).requires_grad_(True)  # clamp to prevent exp() overflow
         context_vec = self.reparameterize(mu, logvar).requires_grad_(True)  # z: 16 dim
         latent = torch.cat([est_vel, context_vec], dim=-1)  # 19 dim
 
@@ -289,6 +289,7 @@ class CENet(nn.Module):
 
             # Gradient step
             total_loss.backward()
+            nn.utils.clip_grad_norm_(self.parameters(), 1.0)
 
             self.optimizer.step()
 

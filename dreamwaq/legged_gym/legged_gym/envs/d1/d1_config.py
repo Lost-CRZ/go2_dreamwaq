@@ -39,7 +39,7 @@ class D1RoughCfg(LeggedRobotCfg):
         terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
 
     class env(LeggedRobotCfg.env):
-        num_envs = 3000
+        num_envs = 3800
         num_observations = 48  # o(45) + true_lin_vel(3)
         # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise
         num_privileged_obs = None  # d(3) + h(187)
@@ -177,7 +177,7 @@ class D1RoughBaseCfg(D1RoughCfg):
             base_height = -5.0      # increased from -1.0: low base must cost more than free tracking reward
             action_rate = -0.01
             smoothness = -0.01
-            power_distribution = -2.5e-7  # 4× less severe than A1: same reasoning as joint_power
+            power_distribution = -2.5e-9  # square(var(power)) grows as torque^4; 100x reduction vs original for D1's 5x larger torques
             foot_clearance = -0.01
             termination = -1.0   # penalty for base hitting ground; essential to discourage collapsing
             torques = -0.0
@@ -257,8 +257,8 @@ class D1RoughCfgWaqPPO(D1RoughBaseCfgPPO):
     seed = 1
 
     class algorithm(D1RoughBaseCfgPPO.algorithm):
-        # Change for 12GB VRAM (RTX 3060 Ti)
-        num_mini_batches = 4 
+        # Tuned for 12GB VRAM (RTX 4070 Ti); 3800 envs * 96 steps / 2 = 182,400 per mini-batch
+        num_mini_batches = 2
 
     class vae:
         beta = 1.0
