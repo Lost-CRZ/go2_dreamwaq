@@ -316,3 +316,74 @@ class D1RoughCfgEstPPO(D1RoughBaseCfgPPO):
         vae_class_name = "EstNet"
         run_name = "est"
         experiment_name = "rough_d1_est"
+
+
+# ===========================================================================
+# CTS (Concurrent Teacher-Student) Training Configs
+# ===========================================================================
+# Environment config: same as WAQ (needs privileged_obs for teacher encoder)
+# D1RoughWaqCfg is reused directly — both teacher and student groups run in
+# the same parallel simulation; the split is handled by OnPolicyRunnerCTS.
+
+
+class D1RoughCfgWaqCtsPPO(D1RoughCfgWaqPPO):
+    # PPO + CTS training configuration for D1 WAQ (Table I architecture).
+    #
+    # Teacher group (first `teacher_ratio` fraction of envs):
+    #   Input  : privileged state s_t (num_privileged_obs = 190 dims)
+    #   Encoder: Privileged Encoder E_theta^t [512, 256] -> z_t^t (16 dims)
+    #   Update : PPO reward gradient (policy surrogate loss)
+    #   Actor  : cat(o_t, z_t^t) -> [512, 256, 128] -> a_t
+    #   Critic : cat(o_t, v_t, priv_extras, z_t^t) -> [512, 256, 128] -> V_t
+    #            = cat(obs(45), lin_vel(3), priv(190), z_t(16)) = 254d
+    #
+    # Student group (remaining envs):
+    #   Input  : obs history o_{t-H:t} (len_obs_history * num_observations = 225 dims)
+    #   Encoder: Proprioceptive Encoder E_theta^s [512, 256] -> z_t^s (16 dims)
+    #   Update : MSE distillation  loss(z_t^s, z_t^t.detach())
+    #   Actor  : cat(o_t, z_t^s) -> [512, 256, 128] -> a_t
+    #   Critic : cat(o_t, v_t, priv_extras, z_t^s) -> [512, 256, 128] -> V_t
+    #
+    # NOTE: o_t has NO true velocity (angular vel, gravity, joint pos/vel, cmd, prev actions)
+    #       v_t = base linear velocity (fetched via env.get_true_vel(), NOT in obs_buf)
+    #       priv_extras = disturbance force(3) + terrain heights(187) = 190d
+    #       s_t (paper) ≈ cat(o_t, v_t, priv_extras) = 238d (env approximation)
+
+    class cts:
+        # Fraction of total envs allocated to the teacher group [0.0, 1.0].
+        # Paper uses 3:1 (= 0.75); higher ratio means more teacher data.
+        teacher_ratio: float = 0.75
+
+        # Hidden dims for the Privileged Encoder E_theta^t  (Table I: [512, 256]).
+        # Input: num_privileged_obs=190, output: num_context=16
+        priv_enc_hidden_dims: list = [512, 256]
+
+        # Hidden dims for the Proprioceptive Encoder E_theta^s  (Table I: [512, 256]).
+        # Input: len_obs_history*num_observations=225, output: num_context=16
+        student_enc_hidden_dims: list = [512, 256]
+
+        # Learning rate for the privileged encoder's Adam optimizer.
+        priv_enc_lr: float = 1e-3
+
+        # Learning rate for the student (proprioceptive) encoder's Adam optimizer.
+        student_enc_lr: float = 1e-3
+
+        # Weight for the MSE distillation loss term applied to the student encoder.
+        mse_loss_weight: float = 1.0
+
+        # Proprioceptive encoder training epochs per rollout (paper Table III separates
+        # these from the PPO epochs / mini-batches).
+        rec_epochs: int = 4
+
+        # Number of mini-batches per epoch for the proprioceptive encoder update.
+        rec_num_mini_batches: int = 4
+
+    class policy(D1RoughCfgWaqPPO.policy):
+        # Table I: Policy Network and Critic both use [512, 256, 128]
+        actor_hidden_dims = [512, 256, 128]
+        critic_hidden_dims = [512, 256, 128]
+
+    class runner(D1RoughCfgWaqPPO.runner):
+        runner_class_name = "OnPolicyRunnerCTS"
+        run_name = "cts"
+        experiment_name = "rough_d1_cts"

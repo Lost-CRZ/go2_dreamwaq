@@ -64,6 +64,7 @@ from .d1.d1_config import (
     D1RoughBaseCfgPPO,
     D1RoughCfgWaqPPO,
     D1RoughCfgEstPPO,
+    D1RoughCfgWaqCtsPPO,
 )
 
 from .go2.go2_config import (
@@ -122,6 +123,9 @@ task_registry.register(
 task_registry.register(
     "d1_est", LeggedRobot, D1RoughEstCfg(), D1RoughCfgEstPPO()
 )  # implicitly // asymmetric
+task_registry.register(
+    "d1_cts", LeggedRobot, D1RoughWaqCfg(), D1RoughCfgWaqCtsPPO()
+)  # CTS concurrent teacher-student
 
 
 task_registry.register(
