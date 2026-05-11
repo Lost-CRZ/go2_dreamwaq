@@ -1641,12 +1641,14 @@ class OnPolicyRunnerCTS:
         teacher_priv_obs_flat = teacher_priv_obs.view(bs, -1)
 
         # PPO storage quantities (teacher envs, no grad needed for these)
+        # Use .reshape() instead of .view() because slicing [:, :N_T, :] produces
+        # a non-contiguous tensor that .view() cannot handle.
         advantages_flat = (
-            self.alg.storage.advantages[:, :N_T, :].detach().view(bs, -1)
+            self.alg.storage.advantages[:, :N_T, :].detach().reshape(bs, -1)
         )
-        actions_flat = self.alg.storage.actions[:, :N_T, :].detach().view(bs, -1)
+        actions_flat = self.alg.storage.actions[:, :N_T, :].detach().reshape(bs, -1)
         old_log_probs_flat = (
-            self.alg.storage.actions_log_prob[:, :N_T, :].detach().view(bs, -1)
+            self.alg.storage.actions_log_prob[:, :N_T, :].detach().reshape(bs, -1)
         )
 
         n_epochs = self.alg.num_learning_epochs

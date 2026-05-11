@@ -28,4 +28,4 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
-from .on_policy_runner import OnPolicyRunner, OnPolicyRunnerWAQ, OnPolicyRunnerEst
+from .on_policy_runner import OnPolicyRunner, OnPolicyRunnerWAQ, OnPolicyRunnerEst, OnPolicyRunnerCTS

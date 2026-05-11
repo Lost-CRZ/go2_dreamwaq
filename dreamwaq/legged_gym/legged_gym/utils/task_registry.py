@@ -35,7 +35,7 @@ import torch
 import numpy as np
 
 from rsl_rl.env import VecEnv
-from rsl_rl.runners import OnPolicyRunner, OnPolicyRunnerWAQ, OnPolicyRunnerEst
+from rsl_rl.runners import OnPolicyRunner, OnPolicyRunnerWAQ, OnPolicyRunnerEst, OnPolicyRunnerCTS
 
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
 from .helpers import (
@@ -185,6 +185,10 @@ class TaskRegistry:
             )
         elif name[-3:] == "est":
             runner = OnPolicyRunnerEst(
+                env, train_cfg_dict, log_dir, device=args.rl_device
+            )
+        elif name[-3:] == "cts":
+            runner = OnPolicyRunnerCTS(
                 env, train_cfg_dict, log_dir, device=args.rl_device
             )
         else:

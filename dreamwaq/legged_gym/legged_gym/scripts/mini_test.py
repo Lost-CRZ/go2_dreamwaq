@@ -17,16 +17,18 @@ from legged_gym.utils import Custom_Logger, Logger
 import time
 import cv2
 import torch
+import torch.nn.functional as F
 
 
 def play(args, flip_visual=False):
     CENET = True if args.task.split("_")[-1] == "waq" else False
+    CTS   = True if args.task.split("_")[-1] == "cts" else False
     # ESTNET = True if args.task.split("_")[-1] == "est" else False
 
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
     env_cfg.asset.flip_visual_attachments = flip_visual  # set before env creation
-    env_cfg.env.num_envs = 2
+    env_cfg.env.num_envs = 1
     # [smooth slope, rough slope, stairs up, stairs down, discrete]
     env_cfg.terrain.terrain_proportions = [0.0, 0.0, 1.0, 0.0, 0.0]
     env_cfg.terrain.num_rows = 10  # level
@@ -67,11 +69,13 @@ def play(args, flip_visual=False):
     # load estimator
     if CENET:
         cenet = ppo_runner.get_inference_cenet(device=env.device).to(env.device)
+    if CTS:
+        student_encoder = ppo_runner.get_inference_student_encoder(device=env.device).to(env.device)
     # if ESTNET:
     #     estnet = ppo_runner.get_inference_estnet(device=env.device).to(env.device)
 
     # logger setting
-    if CENET: #or ESTNET:
+    if CENET or CTS:
         logger = Custom_Logger(env.dt)
     else:
         logger = Logger(env.dt)
@@ -100,7 +104,7 @@ def play(args, flip_visual=False):
     if rms is not None:
         obs = (obs - obs_rms.mean) / torch.sqrt(obs_rms.var + 1e-8)
 
-    if CENET: # or ESTNET:
+    if CENET or CTS:
         obs_history = env.get_observation_history()
         if rms is not None:
             obs_history = (obs_history - obs_rms.mean) / torch.sqrt(obs_rms.var + 1e-8)
@@ -144,6 +148,20 @@ def play(args, flip_visual=False):
                     (obs.detach(), est_vel.detach(), context_vec.detach()), dim=-1
                 )
             actions = policy(actor_obs.detach())
+
+        elif CTS:
+            obs_history = env.get_observation_history()
+            if rms is not None:
+                obs_history = (obs_history - obs_rms.mean) / torch.sqrt(
+                    obs_rms.var + 1e-8
+                )
+            obs_history = obs_history.reshape(env.num_envs, -1).to(env.device)
+
+            z_student = F.normalize(student_encoder(obs_history.detach()), p=2, dim=-1)
+            actor_obs = torch.cat((obs.detach(), z_student.detach()), dim=-1)
+            actions = policy(actor_obs.detach())
+            # est_vel not available for CTS; set to zeros for logger compat
+            est_vel = torch.zeros(env.num_envs, 3, device=env.device)
             # Print actions for debugging
             # print(f"Step {i}: Actions: {actions.detach().cpu().numpy()}")
 
@@ -252,7 +270,7 @@ def play(args, flip_visual=False):
             img_idx += 1
 
         if i < stop_state_log:
-            if CENET: # or ESTNET:
+            if CENET or CTS:
                 logger.log_states(
                     {
                         "command_x": env.commands[robot_index, 0].item(),
@@ -326,7 +344,7 @@ def play(args, flip_visual=False):
 
 
 if __name__ == "__main__":
-    RECORD_FRAMES = False  # render a video
+    RECORD_FRAMES = True  # render a video
     SLOW = True  # with slow speed
     TRUE_VEL = False  # inference with true base velocity not estimated base velocity
     # flip_visual_attachments: rotates every visual mesh 180° around its joint axis.

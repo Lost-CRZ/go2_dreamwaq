@@ -85,6 +85,9 @@ def train(args, flip_visual=False):
         )
         # wandb.run.save()
 
+    # Print out what we are training on
+    print("Start training on task: ", args.task)
+    print(" Spawned env number of agents: ", env.num_envs)
     ppo_runner.learn(
         num_learning_iterations=train_cfg.runner.max_iterations,
         init_at_random_ep_len=True,
